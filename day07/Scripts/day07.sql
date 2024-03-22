@@ -1,0 +1,207 @@
+SELECT * FROM PLAYER;
+
+/* TCL 버튼 클릭하여 매뉴얼 커밋으로 변경
+ * 아래 실습 후 반드시 ROLLBACK 하기
+ * */
+
+/* PLAYER 테이블에서 NICKNAME이 NULL 인 선수들을
+ * 정태민 선수의 닉네임으로 바꾸기
+ */
+
+UPDATE PLAYER
+SET NICKNAME = (
+	SELECT NICKNAME 
+	FROM PLAYER 
+	WHERE PLAYER_NAME = '정태민') 
+WHERE NICKNAME IS NULL; 
+
+/* EMPLOYEES 테이블에서 평균 급여보다 낮은 사원들의 급여를 20% 인상 */
+UPDATE EMPLOYEES 
+SET SALARY = (SALARY * 1.2)
+WHERE SALARY < (
+	SELECT AVG(SALARY)
+	FROM EMPLOYEES
+);
+
+/* PLAYER 테이블에서 평균 키보다 큰 선수들을 삭제 */
+DELETE FROM PLAYER
+WHERE HEIGHT > (
+	SELECT AVG(HEIGHT)
+	FROM PLAYER 
+);
+
+--===============================================================
+/* ROWNUM
+ * 
+ * ROWNUM 은 그냥 컬럼처럼 사용하면 된다. */
+SELECT ROWNUM, E.*
+FROM EMPLOYEES E;
+
+-- [실습]
+/* EMPLOYEES 테이블에서 SALARY 를 내림차순으로 정렬한 후
+ * ROWNUM을 붙여서 조회한다. */
+
+/* 원하는 결과가 나오지 않는다.
+ * SELECT 절에 ROWNUM을 사용하였다.
+ * ORDER BY보다 SELECT가 먼저 실행된다.
+ * 즉, ROWNUM 은 ORDER BY 이전에 부여된다. */
+SELECT ROWNUM, E.*
+FROM EMPLOYEES E
+ORDER BY SALARY DESC;
+
+SELECT ROWNUM, E2.*
+FROM (
+	SELECT *
+	FROM EMPLOYEES 
+	ORDER BY SALARY DESC
+) E2;
+
+/* EMPLOYEES 테이블에서 급여 1위부터 5위까지 조회 */
+SELECT ROWNUM, E2.*
+FROM (
+	SELECT *
+	FROM EMPLOYEES
+	ORDER BY SALARY DESC 
+) E2
+WHERE ROWNUM BETWEEN 1 AND 5;
+
+SELECT * FROM SCHEDULE;
+SELECT * FROM STADIUM; 
+--==================================================
+/* JOIN */
+
+/* EMP 테이블에서 사원번호로 DEPT 테이블의 지역 검색 */
+
+-- ERD 확인하기!
+-- 두 테이블간 관계에서 DEPTNO 를 FK로 사용하고 있으므로
+-- DEPTNO 를 비교하여 등가 조인을 사용할 수 있다.
+
+-- DEPT의 행이 적은데 DEPT가 후행 테이블로 왔다 -> 효율이 좋지 않다.
+-- 별칭을 반드시 줘야 ON절에서 구분이 가능하다.
+SELECT * FROM EMP E JOIN DEPT D 
+ON E.DEPTNO = D.DEPTNO;
+
+-- 정확하게 ON절에 조건에 맞는 것만 합쳐지게 된다.
+SELECT * FROM DEPT D JOIN EMP E 
+ON D.DEPTNO = E.DEPTNO;
+
+-- 사원번호, 지역 검색하라고 했으니 JOIN해서 나온 결과의
+-- 가상 테이블에서 원하는 정보만 뽑아온다.
+SELECT ENAME, LOC, D.DEPTNO FROM DEPT D JOIN EMP E
+ON D.DEPTNO = E.DEPTNO;
+
+--[실습]
+/* PLAYER 테이블에서 송종국 선수가 속한 TEAM 의 전화번호 검색하기 */
+-- 테이블 데이터와 관계 확인하기
+
+-- 선행 테이블 정하기
+SELECT COUNT(*) FROM PLAYER; -- 480
+SELECT COUNT(*) FROM TEAM; -- 15
+
+-- 일단 합치기
+SELECT * FROM TEAM t JOIN PLAYER p 
+ON T.TEAM_ID = P.TEAM_ID;
+
+-- WHERE 를 안 쓸 수 있다면 안 쓰고 ON만 사용하는 게 더 좋다.
+SELECT PLAYER_NAME, TEL FROM TEAM t JOIN PLAYER p 
+ON T.TEAM_ID = P.TEAM_ID
+WHERE PLAYER_NAME = '송종국';
+
+-- 팀이름도 같이 뽑는 게 좋겠다!!
+-- ON에 조건을 추가해도 결과가 같기 때문에 성능을 고려해서 ON절에 조건을 추가한다.
+-- TEAM_ID 는 양쪽 테이블 모두에 존재하기 때문에 어느 테이블의 TEAM_ID 인지 알려줘야 한다.
+SELECT PLAYER_NAME, TEL, TEAM_NAME, T.TEAM_ID FROM TEAM t JOIN PLAYER p 
+ON T.TEAM_ID = P.TEAM_ID AND PLAYER_NAME = '송종국';
+
+/* JOBS 테이블에서 JOB_ID로 직원들의
+ * JOB_TITLE, EMAIL, LAST_NAME, FIRST_NAME 조회 */
+
+SELECT JOB_TITLE, EMAIL, LAST_NAME, FIRST_NAME
+FROM JOBS j JOIN EMPLOYEES e 
+ON J.JOB_ID = E.JOB_ID;
+
+/* EMPLOYEES 테이블에서 HIREDATE 가 2003~2004년 까지인
+ * 사원의 이름을 띄어쓰기로 구분하고, 부서명 검색 DEPARTMENTS */
+SELECT E.LAST_NAME || ' ' || E.FIRST_NAME "FULL NAME", D.DEPARTMENT_ID "부서명"
+FROM DEPARTMENTS d JOIN EMPLOYEES e 
+ON D.DEPARTMENT_ID = E.DEPARTMENT_ID 
+AND HIRE_DATE BETWEEN '20030101' AND '20041231';
+
+/* EMP 테이블에서 ENAME에 L이 있는 사원들의 DNAME과 LOC 검색 */
+SELECT DNAME, LOC 
+FROM DEPT D JOIN EMP E
+ON D.DEPTNO = E.DEPTNO AND ENAME LIKE '%L%';
+
+/* 축구 선수들 중에서 각 팀 별로 키가 가장 큰 선수들의 전체 정보 조회 */
+-- 우선 팀 별로 그룹화를 하고 팀의 가장 큰 키를 찾는다.
+SELECT TEAM_ID, MAX(HEIGHT)
+FROM PLAYER p 
+GROUP BY TEAM_ID;
+-- HEIGHT 그리고 TEAM_ID가 일치하는 조건으로
+-- PLAYER 테이블과 JOIN 한다.
+SELECT * FROM 
+(
+	SELECT TEAM_ID, MAX(HEIGHT) HEIGHT
+	FROM PLAYER P
+	GROUP BY TEAM_ID 
+) P1
+JOIN PLAYER P2
+ON P1.TEAM_ID = P2.TEAM_ID AND P1.HEIGHT = P2.HEIGHT
+ORDER BY P1.TEAM_ID;
+
+/* EMP 테이블에서 각 사원의 매니저 이름 조회 (셀프 JOIN) */
+-- 자기 자신을 JOIN 하는 것을 SELF JOIN 이라고 한다.
+
+SELECT E1.EMPNO 사원번호, E1.ENAME 사원이름,  E1.MGR 매니저번호, E2.ENAME "매니저 이름"
+FROM EMP E1 JOIN EMP E2
+ON E1.MGR = E2.EMPNO
+
+/* 외부조인 */
+CREATE TABLE TBL_GRADE(
+	GRADE_NUM NUMBER,
+	GRADE_NAME VARCHAR2(1000),
+	CONSTRAINT PK_GRADE PRIMARY KEY(GRADE_NUM)
+);
+
+CREATE TABLE TBL_USER(
+	USER_NUM NUMBER,
+	USER_ID VARCHAR2(1000),
+	GRADE_NUM NUMBER,
+	CONSTRAINT PK_USER PRIMARY KEY(USER_NUM),
+	CONSTRAINT FK_USER FOREIGN KEY(GRADE_NUM)
+	REFERENCES TBL_GRADE(GRADE_NUM)
+);
+ 
+INSERT INTO TBL_GRADE
+VALUES(3, 'NORMAL');
+
+INSERT INTO TBL_USER 
+VALUES(2, 'B', 2);
+
+SELECT * FROM TBL_GRADE;
+SELECT * FROM TBL_USER;
+
+SELECT * FROM TBL_GRADE G INNER JOIN TBL_USER U 
+ON G.GRADE_NUM = U.GRADE_NUM;
+
+SELECT * FROM TBL_GRADE G LEFT OUTER JOIN TBL_USER U
+ON G.GRADE_NUM = U.GRADE_NUM;
+
+/* PLAYER 테이블에서 키가 NULL 인 선수들의 키를 170으로 변경하여 평균 조회 */
+-- NVL() 함수로 NULL 값을 170으로 변경하기
+SELECT NVL(HEIGHT, 170) FROM PLAYER P;
+
+-- 1. 해당 컬럼의 평균을 구하기
+SELECT AVG(NVL(HEIGHT, 170)) FROM PLAYER P;
+
+-- 2. 서브쿼리로 사용하여 조회한 테이블에서 평균 구하기
+SELECT AVG(HEIGHT) FROM (
+	SELECT NVL(HEIGHT, 170) HEIGHT FROM PLAYER P
+);
+
+/* PLAYER 테이블에서 팀 별 최대 몸무게 조회 */
+SELECT TEAM_ID, MAX(WEIGHT) 
+FROM PLAYER P
+GROUP BY TEAM_ID 
+ORDER BY TEAM_ID;
+
